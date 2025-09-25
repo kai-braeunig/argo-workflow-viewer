@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Argo Workflow Viewer</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #f8f9fa; color: #212529; }
+        #controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        input { font-size: 16px; padding: 8px; min-width: 400px; border: 1px solid #ccc; border-radius: 4px; }
+        button { font-size: 16px; padding: 8px 12px; border: none; background-color: #007bff; color: white; border-radius: 4px; cursor: pointer; }
+        button:hover { background-color: #0056b3; }
+        ul { list-style-type: none; padding-left: 20px; }
+        li { padding: 4px; border-left: 1px solid #ccc; }
+        .Succeeded { color: #28a745; }
+        .Failed { color: #dc3545; }
+        .Error { color: #dc3545; }
+        .Running { color: #17a2b8; }
+        .status { font-weight: bold; margin-left: 10px; }
+        #error { color: #dc3545; margin-top: 15px; }
+        #loading { color: #6c757d; }
+    </style>
+</head>
+<body>
+    <h1>Argo Workflow Viewer</h1>
+    <div id="controls">
+        <input type="text" id="workflowName" placeholder="Enter Argo Workflow Name...">
+        <button onclick="fetchWorkflow()">Visualize</button>
+    </div>
+    <div id="loading"></div>
+    <div id="hierarchy"></div>
+    <div id="error"></div>
+
+    <script>
+        /**
+         * Renders the hierarchical data into a nested HTML list.
+         * @param {Array} nodes - The array of node objects to render.
+         * @returns {string} The generated HTML string.
+         */
+        function renderTree(nodes) {
+            if (!nodes || nodes.length === 0) return '';
+            let html = '<ul>';
+            for (const node of nodes) {
+                html += `<li>
+                    ${node.name}
+                    <span class="status ${node.status}">(${node.status})</span>
+                </li>`;
+                if (node.children && node.children.length > 0) {
+                    // Recursively render the child nodes.
+                    html += renderTree(node.children);
+                }
+            }
+            html += '</ul>';
+            return html;
+        }
+
+        /**
+         * Fetches workflow data from the backend API and updates the DOM.
+         */
+        async function fetchWorkflow() {
+            const workflowName = document.getElementById('workflowName').value;
+            const hierarchyDiv = document.getElementById('hierarchy');
+            const errorDiv = document.getElementById('error');
+            const loadingDiv = document.getElementById('loading');
+            
+            if (!workflowName) {
+                errorDiv.textContent = "Please enter a workflow name.";
+                return;
+            }
+
+            hierarchyDiv.innerHTML = "";
+            loadingDiv.textContent = "Loading...";
+            errorDiv.textContent = "";
+
+            try {
+                // Fetch data from the backend API endpoint.
+                const response = await fetch(`/api/workflow/${workflowName}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || `HTTP error! Status: ${response.status}`);
+                }
+                const data = await response.json();
+                hierarchyDiv.innerHTML = renderTree(data);
+            } catch (error) {
+                errorDiv.textContent = `Error: ${error.message}`;
+                console.error('Fetch error:', error);
+            } finally {
+                loadingDiv.textContent = "";
+            }
+        }
+    </script>
+</body>
+</html>
