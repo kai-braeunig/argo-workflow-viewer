@@ -1,0 +1,11 @@
+{
+  "name": "Self-Contained Argo Demo",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/kubectl-helm-minikube:1": {}
+  },
+  "forwardPorts": [5000],
+  "onAutoForward": "openBrowser",
+  "postCreateCommand": "minikube start && kubectl create namespace argo && kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.5.5/install.yaml && kubectl apply -f sample-workflow.yaml"
+}
