@@ -1,37 +1,84 @@
+# A more complex workflow with steps and a parallel DAG
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  generateName: dag-diamond-
+  generateName: complex-pipeline-
   namespace: argo
 spec:
-  entrypoint: diamond
+  entrypoint: main-pipeline
   templates:
-  - name: diamond
+  # 1. Main pipeline orchestrates the sequence of stages
+  - name: main-pipeline
+    steps:
+    - - name: stage-one-setup
+        template: setup-task
+    - - name: stage-two-processing
+        template: parallel-processing-dag
+    - - name: stage-three-summary
+        template: summary-task
+
+  # 2. A simple task for the first stage
+  - name: setup-task
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo '--- Stage 1: Setup complete ---'; sleep 5"]
+
+  # 3. A DAG for the second stage, containing parallel tasks
+  - name: parallel-processing-dag
     dag:
       tasks:
-      - name: A
-        template: echo
+      # This task "fans out" into three parallel sub-tasks
+      - name: fan-out-processing
+        template: process-item-task
+        withItems:
+        - { item: "apples" }
+        - { item: "bananas" }
+        - { item: "cherries" }
+        # --- THIS IS THE CRITICAL FIX ---
+        # It maps the loop variable to the template's input parameter.
         arguments:
-          parameters: [{name: message, value: A}]
-      - name: B
-        dependencies: [A]
-        template: echo
-        arguments:
-          parameters: [{name: message, value: B}]
-      - name: C
-        dependencies: [A]
-        template: echo
-        arguments:
-          parameters: [{name: message, value: C}]
-      - name: D
-        dependencies: [B, C]
-        template: echo
-        arguments:
-          parameters: [{name: message, value: D}]
-  - name: echo
+          parameters:
+          - name: item
+            value: "{{item.item}}"
+        # --------------------------------
+
+      # This task runs in parallel with the "fan-out" group
+      - name: metadata-task
+        template: metadata-task
+
+      # This task "fans in," waiting for all the above tasks to complete
+      - name: fan-in-aggregation
+        dependencies: [fan-out-processing, metadata-task]
+        template: aggregation-task
+
+  # 4. The sub-task that gets created by the loop (withItems)
+  - name: process-item-task
     inputs:
       parameters:
-      - name: message
+      - name: item
     container:
-      image: alpine:3.7
-      command: [echo, "{{inputs.parameters.message}}"]
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo 'Processing item: {{inputs.parameters.item}}'; sleep 10"]
+
+  # 5. The parallel metadata task
+  - name: metadata-task
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo 'Analyzing metadata...'; sleep 7"]
+
+  # 6. The fan-in aggregation task
+  - name: aggregation-task
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo '--- Aggregating all results ---'; sleep 3"]
+      
+  # 7. A simple task for the final stage
+  - name: summary-task
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo '--- Stage 3: Summary generated ---'"]

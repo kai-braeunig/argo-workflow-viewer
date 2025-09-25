@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, send_from_directory
 from flask_cors import CORS
 from kubernetes import client, config
 
@@ -8,6 +8,11 @@ ARGO_NAMESPACE = "argo"
 app = Flask(__name__)
 # Enable Cross-Origin Resource Sharing for the application.
 CORS(app)
+
+@app.route("/")
+def serve_index():
+    """Serves the index.html file."""
+    return send_from_directory('.', 'index.html')
 
 def build_tree(nodes, parent_id):
     """Recursively builds a hierarchical tree from a flat dictionary of Argo nodes."""
@@ -34,16 +39,13 @@ def build_tree(nodes, parent_id):
 def get_workflow_hierarchy(workflow_name):
     """API endpoint to fetch a workflow and return its node hierarchy."""
     try:
-        # Attempt to load the in-cluster configuration for a Kubernetes pod environment.
         config.load_incluster_config()
     except config.ConfigException:
-        # If not in a cluster, fall back to the local kubeconfig file.
         config.load_kube_config()
         
     api = client.CustomObjectsApi()
 
     try:
-        # Fetch the Argo Workflow Custom Resource from the Kubernetes API.
         wf = api.get_namespaced_custom_object(
             group="argoproj.io",
             version="v1alpha1",
@@ -52,10 +54,10 @@ def get_workflow_hierarchy(workflow_name):
             plural="workflows",
         )
 
-        if not wf or "status" not in wf or "nodes" not in wf:
-            return jsonify({"error": "Workflow exists but has no status or nodes to display."}), 404
+        # --- THIS IS THE CORRECTED LOGIC ---
+        if not wf or "status" not in wf or "nodes" not in wf.get("status", {}):
+            return jsonify({"error": "Workflow exists but its status or nodes are not yet available. Please wait a moment and try again."}), 404
 
-        # The root node ID for the hierarchy is the workflow's name.
         root_node_id = wf["metadata"]["name"]
         all_nodes = wf["status"]["nodes"]
         
@@ -72,5 +74,4 @@ def get_workflow_hierarchy(workflow_name):
         return jsonify({"error": "An internal server error occurred."}), 500
 
 if __name__ == "__main__":
-    # Run the Flask server, making it accessible from any network interface.
     app.run(host='0.0.0.0', port=5000)
