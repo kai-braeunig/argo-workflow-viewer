@@ -1,0 +1,51 @@
+# A simple, sequential 3-step workflow with varying durations for each step.
+# This demonstrates the use of a reusable template with parameters.
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: sequential-timed-workflow-
+  namespace: argo
+spec:
+  entrypoint: main-sequence
+  templates:
+  # This is the main template that defines the sequence of operations.
+  - name: main-sequence
+    steps:
+    - - name: step-one
+        template: print-and-wait
+        arguments:
+          parameters:
+          - name: message
+            value: "--- Step 1: Initialization complete. ---"
+          - name: duration
+            value: "5" # A 5-second wait
+
+    - - name: step-two
+        template: print-and-wait
+        arguments:
+          parameters:
+          - name: message
+            value: "--- Step 2: Processing data. This takes a little longer. ---"
+          - name: duration
+            value: "10" # A 10-second wait
+
+    - - name: step-three
+        template: print-and-wait
+        arguments:
+          parameters:
+          - name: message
+            value: "--- Step 3: Starting long-running analysis. This will take one hour. ---"
+          - name: duration
+            value: "3600" # A 1-hour wait (60 seconds * 60 minutes)
+
+  # This is a reusable template that can be called by any step.
+  # It takes a message and a duration as input.
+  - name: print-and-wait
+    inputs:
+      parameters:
+      - name: message
+      - name: duration
+    container:
+      image: alpine:3.18
+      command: [sh, -c]
+      args: ["echo '{{inputs.parameters.message}}' && echo 'Waiting for {{inputs.parameters.duration}} seconds...' && sleep {{inputs.parameters.duration}} && echo 'Task complete.'"]
