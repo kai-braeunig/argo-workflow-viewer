@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF--8">
+    <meta charset="UTF-8">
     <title>Argo Workflow Viewer</title>
     <style>
         body { font-family: sans-serif; line-height: 1.6; padding: 20px; display: flex; gap: 40px; }
@@ -15,27 +15,27 @@
     </style>
 </head>
 <body>
-    <!-- Left Panel: List and Search Workflows -->
+    <!-- This panel displays a searchable list of all workflows. -->
     <div class="panel">
         <h2>All Workflows</h2>
         <input type="text" id="searchInput" onkeyup="filterWorkflows()" placeholder="Search by name...">
         <button onclick="listWorkflows()">Refresh List</button>
         <div id="workflowList"></div>
     </div>
-    <!-- Right Panel: Visualize a Specific Workflow -->
+    
+    <!-- This panel displays the details of the workflow selected from the left panel. -->
     <div class="panel">
         <h2 id="vizTitle">Visualize Workflow</h2>
+        <div id="workflow-details"></div>
         <div id="hierarchy"></div>
         <div id="error"></div>
     </div>
 
     <script>
-        // Store all workflows globally to avoid repeated API calls for filtering
+        // A global variable to cache the workflow list, preventing redundant API calls.
         let allWorkflows = [];
 
-        /**
-         * Fetches all workflows from the backend and stores them.
-         */
+        // Fetches the list of all workflows from the backend.
         async function listWorkflows() {
             const listDiv = document.getElementById('workflowList');
             listDiv.innerHTML = "Loading...";
@@ -43,15 +43,13 @@
                 const response = await fetch(`/api/workflows`);
                 allWorkflows = await response.json();
                 if (allWorkflows.error) throw new Error(allWorkflows.error);
-                filterWorkflows(); // Display the list immediately
+                filterWorkflows(); // Render the list after fetching.
             } catch (error) {
                 listDiv.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
             }
         }
 
-        /**
-         * Filters and displays workflows based on the search input.
-         */
+        // Filters the cached list based on the search input and updates the display.
         function filterWorkflows() {
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
             const filtered = allWorkflows.filter(wf => wf.name.toLowerCase().includes(searchTerm));
@@ -62,7 +60,7 @@
                 html += '<li>No workflows found.</li>';
             } else {
                 filtered.forEach(wf => {
-                    // Added onclick to call fetchWorkflow with the name
+                    // Each item in the list is clickable and will call fetchWorkflow with its name.
                     html += `<li class="workflow-item" onclick="fetchWorkflow('${wf.name}')">
                                 ${wf.name} <span class="status ${wf.status}">(${wf.status})</span>
                             </li>`;
@@ -72,17 +70,17 @@
             listDiv.innerHTML = html;
         }
 
-        /**
-         * Fetches and renders the hierarchy for a specific workflow.
-         * @param {string} workflowName - The name of the workflow to visualize.
-         */
+        // Fetches and displays the detailed hierarchy for a specific workflow.
         async function fetchWorkflow(workflowName) {
             const hierarchyDiv = document.getElementById('hierarchy');
             const errorDiv = document.getElementById('error');
+            const detailsDiv = document.getElementById('workflow-details');
             document.getElementById('vizTitle').textContent = `Visualizing: ${workflowName}`;
             
+            // Clear the previous visualization and error messages.
             hierarchyDiv.innerHTML = "Loading...";
             errorDiv.textContent = "";
+            detailsDiv.innerHTML = "";
 
             try {
                 const response = await fetch(`/api/workflow/${workflowName}`);
@@ -91,32 +89,34 @@
                     throw new Error(err.error || `HTTP error! Status: ${response.status}`);
                 }
                 const data = await response.json();
-                hierarchyDiv.innerHTML = renderTree(data);
+
+                // Display the fetched metadata and the rendered node tree.
+                detailsDiv.innerHTML = `
+                    <p><strong>Start Time:</strong> ${data.startTime}<br>
+                    <strong>Duration:</strong> ${data.duration}</p>`;
+                hierarchyDiv.innerHTML = renderTree(data.nodes);
+
             } catch (error) {
                 hierarchyDiv.innerHTML = "";
                 errorDiv.textContent = `Error: ${error.message}`;
             }
         }
 
-        /**
-         * Recursively renders the node tree into a nested HTML list.
-         * @param {Array} nodes - The array of node objects.
-         * @returns {string} The HTML string.
-         */
+        // Recursively converts the nested node data into an HTML list.
         function renderTree(nodes) {
             if (!nodes || nodes.length === 0) return '';
             let html = '<ul>';
             for (const node of nodes) {
                 html += `<li>${node.name} <span class="status ${node.status}">(${node.status})</span></li>`;
                 if (node.children && node.children.length > 0) {
-                    html += renderTree(node.children);
+                    html += renderTree(node.children); // Recurse for children.
                 }
             }
             html += '</ul>';
             return html;
         }
 
-        // Load the workflow list when the page first loads.
+        // Trigger the initial data load when the page is ready.
         window.onload = listWorkflows;
     </script>
 </body>
